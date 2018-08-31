@@ -40,7 +40,8 @@ class ActorCritic:
         # Calculate de/dA as = de/dC * dC/dA, where e is error, C critic, A act #
         # ===================================================================== #
 
-        self.memory = deque(maxlen=10000)
+
+        self.memory = deque(maxlen=2000)
         self.actor_state_input, self.actor_model = self.create_actor_model()
         _, self.target_actor_model = self.create_actor_model()
 
@@ -127,8 +128,6 @@ class ActorCritic:
     # ========================================================================= #
 
     def remember(self, cur_state, action, reward, new_state, done):
-        if len(self.memory) > 10000:
-            self.memory.pop()
         self.memory.append([cur_state, action, reward, new_state, done])
 
     def _train_actor(self, samples):
@@ -213,59 +212,27 @@ def main():
 
     cur_state = env.reset()
     action = env.action_space.sample()
-    episodes = 0
-    pbar = tqdm(range(10000))
-    for i in pbar:
-        new_state, reward, done, _ = env.step(env.action_space.sample())
-        actor_critic.remember(cur_state, action, reward, new_state, done)
-        env.render()
-        if done:
-            print('done')
-
-
-    pbar = tqdm(range(num_trials))
     rewards = []
+    episodes = 0
+    pbar = tqdm(range(num_trials))
     for i in pbar:
-        t = 0
-        cur_state = env.reset()
-        acc_reward = 0
-        while t < 2000:
-            env.render()
+        env.render()
 
-            action = actor_critic.act(cur_state)
-            new_state, reward, done, _ = env.step(action)
-            acc_reward += reward
-
-            actor_critic.remember(cur_state, action, reward, new_state, done)
-            if t % 100 == 0:
-                actor_critic.train()
-
-            cur_state = new_state
-
-            if done:
-                break
-
-            pbar.set_description('t: {0:04d}\tr: {1:2.4f}\te: {2:1.4f}\td: {3:04d}'.format(t, acc_reward / t, actor_critic.epsilon, episodes))
-            t += 1
-        episodes += 1
-        rewards.append(acc_reward / t)
-        plt.plot(rewards)
-        plt.gca().set_xlabel('episodes')
-        plt.gca().set_ylabel('return')
-        plt.savefig('./reward.png')
-
-    cur_state = env.reset()
-    steps = 0
-    while True:
         action = actor_critic.act(cur_state)
         new_state, reward, done, _ = env.step(action)
-        env.render()
-        steps += 1
-        cur_state = new_state
 
-        if steps % 10000 == 0:
-            cur_state = env.reset()
-            steps = 0
+        actor_critic.remember(cur_state, action, reward, new_state, done)
+        if i % 100 == 0:
+            actor_critic.train()
+
+        cur_state = new_state
+        rewards.append(reward)
+        if done:
+            episodes +=1
+        if len(rewards) > 10:
+            pbar.set_description('r: {0:2.4f}\te: {1:1.4f}\td: {2:04d}'.format(np.mean(rewards[-10:]), actor_critic.epsilon, episodes))
+        if episodes >= 100:
+            env.render()
 
 
 if __name__ == "__main__":
